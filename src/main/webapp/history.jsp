@@ -1,106 +1,81 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ page import="java.util.List, app.SystemMetric" %>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>System History Log</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; background-color: #f4f7f6; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { background-color: #2c3e50; color: white; padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #eee; }
-        tr:hover { background-color: #f9f9f9; }
-        .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #3498db; font-weight: bold; }
-    </style>
+    <meta charset="UTF-8">
+    <title>Usage History | Remote Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 260px; background: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; box-shadow: 4px 0 10px rgba(0,0,0,0.1); }
+        .sidebar h2 { color: #38bdf8; font-size: 1.2rem; margin-bottom: 30px; }
+        .nav-links a { text-decoration: none; color: #cbd5e1; padding: 12px 15px; border-radius: 8px; display: flex; gap: 10px; margin-bottom: 5px; }
+        .nav-links a:hover { background: #334155; color: white; }
+        .nav-links a.active { background: var(--primary); color: white; }
+
+        .main-content { flex-grow: 1; overflow-y: auto; padding: 30px; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
+        th { background: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 0.75rem; padding: 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <a href="LoginServlet" class="back-link">← Back to Dashboard</a>
-        <h2>System Resource History (Last 20 Samples)</h2>
-        
-        <div class="container" style="display: flex; gap: 20px; margin-bottom: 20px;">
-    <div style="flex: 1; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-        <h4 style="text-align: center;">CPU Usage Trend (%)</h4>
-        <canvas id="cpuChart"></canvas>
+    <div class="sidebar">
+        <h2>RemoteMonitor</h2>
+        <div class="nav-links">
+            <a href="LoginServlet">🏠 Dashboard</a>
+            <a href="HistoryServlet" class="active">📈 Usage History</a>
+            <a href="KilledHistoryServlet">📂 Killed Logs</a>
+        </div>
     </div>
-    <div style="flex: 1; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-        <h4 style="text-align: center;">RAM Usage Trend (MB)</h4>
-        <canvas id="ramChart"></canvas>
+
+    <div class="main-content">
+        <h2 style="margin-top: 0;">System Resource History</h2>
+        
+        <div class="chart-grid">
+            <div class="card"><canvas id="cpuChart"></canvas></div>
+            <div class="card"><canvas id="ramChart"></canvas></div>
+        </div>
+
+        <div class="card" style="padding: 0;">
+            <table>
+                <thead>
+                    <tr><th>Timestamp</th><th>Processes</th><th>RAM (MB)</th><th>CPU (%)</th></tr>
+                </thead>
+                <tbody>
+                    <% List<SystemMetric> list = (List<SystemMetric>) request.getAttribute("metricsList");
+                       if(list != null) { for(SystemMetric m : list) { %>
+                    <tr>
+                        <td><%= m.getTimestamp().substring(11, 19) %></td>
+                        <td><%= m.getTotalProcesses() %></td>
+                        <td><%= String.format("%.1f", m.getRamUsage()) %></td>
+                        <td style="font-weight:bold; color:var(--primary)"><%= m.getCpuUsage() %>%</td>
+                    </tr>
+                    <% } } %>
+                </tbody>
+            </table>
+        </div>
     </div>
-	</div>
-        
-        
-        
-        <table>
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Total Processes</th>
-                    <th>Total RAM Usage (MB)</th>
-                    <th>Avg CPU (%)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <%
-                    List<SystemMetric> list = (List<SystemMetric>) request.getAttribute("metricsList");
-                    if(list != null && !list.isEmpty()) {
-                        for(SystemMetric m : list) {
-                %>
-                <tr>
-                    <td><%= m.getTimestamp() %></td>
-                    <td><%= m.getTotalProcesses() %></td>
-                    <td><%= String.format("%.2f", m.getRamUsage()) %> MB</td>
-                    <td><%= m.getCpuUsage() %>%</td>
-                </tr>
-                <% 
-                        }
-                    } else { 
-                %>
-                <tr><td colspan="4" style="text-align:center;">No historical data available yet. Wait for the background monitor to run.</td></tr>
-                <% } %>
-            </tbody>
-        </table>
-    </div>
+
+    <script>
+        const labels = [<% for(SystemMetric m : list) { %> "<%= m.getTimestamp().substring(11, 19) %>", <% } %>].reverse();
+        const cpuData = [<% for(SystemMetric m : list) { %> <%= m.getCpuUsage() %>, <% } %>].reverse();
+        const ramData = [<% for(SystemMetric m : list) { %> <%= m.getRamUsage() %>, <% } %>].reverse();
+
+        new Chart(document.getElementById('cpuChart'), {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label: 'CPU %', data: cpuData, borderColor: '#ef4444', tension: 0.3, fill: true, backgroundColor: 'rgba(239, 68, 68, 0.1)' }] }
+        });
+        new Chart(document.getElementById('ramChart'), {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label: 'RAM MB', data: ramData, borderColor: '#3b82f6', tension: 0.3, fill: true, backgroundColor: 'rgba(59, 130, 246, 0.1)' }] }
+        });
+    </script>
 </body>
-<script>
-//Prepare Data from Java List
-const labels = [<% for(SystemMetric m : list) { %> "<%= m.getTimestamp().substring(11, 19) %>", <% } %>].reverse();
-const cpuData = [<% for(SystemMetric m : list) { %> <%= m.getCpuUsage() %>, <% } %>].reverse();
-const ramData = [<% for(SystemMetric m : list) { %> <%= m.getRamUsage() %>, <% } %>].reverse();
-
-// CPU Chart Configuration
-new Chart(document.getElementById('cpuChart'), {
-    type: 'line',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'CPU %',
-            data: cpuData,
-            borderColor: '#e74c3c',
-            backgroundColor: 'rgba(231, 76, 60, 0.1)',
-            fill: true,
-            tension: 0.3
-        }]
-    },
-    options: { scales: { y: { beginAtZero: true, max: 100 } } }
-});
-
-// RAM Chart Configuration
-new Chart(document.getElementById('ramChart'), {
-    type: 'line',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'RAM (MB)',
-            data: ramData,
-            borderColor: '#3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.1)',
-            fill: true,
-            tension: 0.3
-        }]
-    }
-});
-</script>
 </html>
