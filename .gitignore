@@ -1,0 +1,19 @@
+# --- Secrets & Config ---
+src/main/java/app/db.properties
+
+# --- Compiled Classes & Build Folders ---
+bin/
+build/
+target/
+*.class
+
+# --- IDE (Eclipse/WST) Specifics ---
+.settings/
+.project
+.classpath
+.metadata/
+Servers/
+
+# --- Operating System Junk ---
+Thumbs.db
+.DS_Store
