@@ -12,42 +12,45 @@ import javax.servlet.http.HttpServletResponse;
 @WebServlet("/KillServlet")
 public class KillServlet extends HttpServlet {
 
-    // Dashboard links use GET. This MUST exist to avoid 405.
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
         String pid = request.getParameter("pid");
-        System.out.println("KillServlet triggered for PID: " + pid); // Debug line
-
         if (pid != null && !pid.isEmpty()) {
             try {
-                // Execute Kill
                 Runtime.getRuntime().exec("taskkill /F /PID " + pid).waitFor(); 
-                
-                // Log to DB
                 logActionToDB(Integer.parseInt(pid));
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        // Always redirect back to the refreshed list
         response.sendRedirect("LoginServlet");
     }
 
     private void logActionToDB(int pid) {
-        // Ensure this column exists: action_performed
-        String sql = "INSERT INTO system_logs (pid, process_name, action_performed) VALUES (?, ?, ?)";
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+        String insertSql = "INSERT INTO system_logs (pid, process_name, action_performed) VALUES (?, ?, ?)";
+        
+        try (Connection con = DBConnection.getConnection()) {
+            // 1. Log the Kill Action
+            try (PreparedStatement ps = con.prepareStatement(insertSql)) {
+                ps.setInt(1, pid);
+                ps.setString(2, "REMOTE_KILL");
+                ps.setString(3, "SUCCESS");
+                ps.executeUpdate();
+            }
+
+            // 2. Cleanup Logs (Keep only last 20)
+            String deleteSql = "DELETE FROM system_logs WHERE log_id NOT IN (" +
+                               "SELECT log_id FROM (SELECT log_id FROM system_logs " +
+                               "ORDER BY timestamp DESC LIMIT 20) AS tmp)";
+            try (PreparedStatement ps = con.prepareStatement(deleteSql)) {
+                ps.executeUpdate();
+            }
             
-            ps.setInt(1, pid);
-            ps.setString(2, "REMOTE_KILL");
-            ps.setString(3, "SUCCESS");
-            ps.executeUpdate();
-            System.out.println("Log entry created in DB.");
+            System.out.println("Log entry created and table cleaned.");
         } catch (Exception e) {
-            System.err.println("SQL Log Failure: " + e.getMessage());
+            System.err.println("SQL Log/Cleanup Failure: " + e.getMessage());
         }
     }
 }

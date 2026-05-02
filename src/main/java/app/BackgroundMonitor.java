@@ -12,8 +12,6 @@ public class BackgroundMonitor {
 
     public static void startMonitoring() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
-        
-        // Schedule the task to run every 1 minute
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 captureAndStoreMetrics();
@@ -24,26 +22,38 @@ public class BackgroundMonitor {
     }
 
     private static void captureAndStoreMetrics() {
-        // Get real CPU Load
         float realCpu = ProcessManager.getTotalCpuLoad();
-        
         List<ProcessInfo> processes = ProcessManager.getAllProcesses();
         int totalProcs = processes.size();
         double totalRam = processes.stream().mapToDouble(ProcessInfo::getRamUsage).sum();
 
-        String sql = "INSERT INTO system_metrics (total_cpu_usage, used_ram_mb, total_processes) VALUES (?, ?, ?)";
+        String insertSql = "INSERT INTO system_metrics (total_cpu_usage, used_ram_mb, total_processes) VALUES (?, ?, ?)";
         
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+        try (Connection con = DBConnection.getConnection()) {
+            // 1. Insert New Metric
+            try (PreparedStatement ps = con.prepareStatement(insertSql)) {
+                ps.setFloat(1, realCpu);
+                ps.setDouble(2, totalRam);
+                ps.setInt(3, totalProcs);
+                ps.executeUpdate();
+            }
+
+            // 2. Perform Cleanup (Keep only last 20)
+            cleanupOldMetrics(con);
             
-            ps.setFloat(1, realCpu); // Now using real data!
-            ps.setDouble(2, totalRam);
-            ps.setInt(3, totalProcs);
-            ps.executeUpdate();
-            
-            System.out.println("[Monitor] Persisted CPU: " + realCpu + "%");
+            System.out.println("[Monitor] Persisted & Cleaned Metrics. CPU: " + realCpu + "%");
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void cleanupOldMetrics(Connection con) throws Exception {
+        // Subquery approach to delete all but the top 20 latest entries
+        String deleteSql = "DELETE FROM system_metrics WHERE metric_id NOT IN (" +
+                           "SELECT metric_id FROM (SELECT metric_id FROM system_metrics " +
+                           "ORDER BY timestamp DESC LIMIT 20) AS tmp)";
+        try (PreparedStatement ps = con.prepareStatement(deleteSql)) {
+            ps.executeUpdate();
         }
     }
 
